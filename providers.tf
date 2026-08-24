@@ -9,7 +9,7 @@ terraform {
     bucket = "tf-state-uno"
     key = "trrfrm.stte"
     region= "eu-west-1"
-    dynamodb_table = "DDBB"
+    use_lockfile = true
   }
 
 }
