@@ -92,3 +92,13 @@ resource "aws_subnet" "subnet_priv2" {
   cidr_block = "10.0.4.0/24"
   availability_zone = "eu-west-1b"
 }
+# -------------------------------------------------------------------
+
+resource "aws_ecr_repository" "ECR" {
+  name = "nginx-app"
+  image_tag_mutability = "MUTABLE"
+  
+  image_scanning_configuration {
+  scan_on_push = true
+  }
+}
