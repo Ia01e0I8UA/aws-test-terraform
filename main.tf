@@ -165,9 +165,54 @@ resource "aws_ecs_task_definition" "app" {
           protocol      = "tcp"
         }
       ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.app.name
+          "awslogs-region"        = "eu-west-1"
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
     }
   ])
 }
+
+resource "aws_iam_openid_connect_provider" "github" {
+  url             = "https://token.actions.githubusercontent.com"
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = ["ffffffffffffffffffffffffffffffffffffffff"]
+}
+
+resource "aws_iam_role" "github_actions" {
+  name = "github-actions-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Federated = aws_iam_openid_connect_provider.github.arn
+      }
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringLike = {
+          "token.actions.githubusercontent.com:sub" = "repo:Ia01e0I8UA/aws-test-terraform:*"
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "github_policy_Attatchment" {
+  role      = aws_iam_role.github_actions.name
+  policy_arn = "arn:aws:iam::aws:policy/PowerUserAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "github_IAM_Attatchment" {
+  role      = aws_iam_role.github_actions.name
+  policy_arn = "arn:aws:iam::aws:policy/IAMFullAccess"
+}
+
 #------------------------------------------------------------------SG
 resource "aws_security_group" "alb" {
   name   = "alb-sg"
@@ -241,3 +286,81 @@ resource "aws_lb_listener" "http" {
     target_group_arn = aws_lb_target_group.app.arn
   }
 }
+
+#-------------------------------------------------------------------------OBSERVAVILIDAD	
+
+resource "aws_cloudwatch_log_group" "app" {
+  name              = "/ecs/flagship-task"
+  retention_in_days = 7
+}
+      
+resource "aws_cloudwatch_dashboard" "main" {
+  dashboard_name = "flagship-dashboard"
+
+  dashboard_body = jsonencode({
+    widgets = [
+      {
+        type = "metric", x = 0, y = 0, width = 12, height = 6
+        properties = {
+          title  = "ECS CPU & Memory Utilization"
+          region = "eu-west-1"
+          metrics = [
+            ["AWS/ECS", "CPUUtilization", "ClusterName", "flagship-cluster", "ServiceName", "flagship-service"],
+            ["AWS/ECS", "MemoryUtilization", "ClusterName", "flagship-cluster", "ServiceName", "flagship-service"]
+          ]
+          period = 60, stat = "Average"
+        }
+      },
+      {
+        type = "metric", x = 12, y = 0, width = 12, height = 6
+        properties = {
+          title  = "ALB Request Count"
+          region = "eu-west-1"
+          metrics = [
+            ["AWS/ApplicationELB", "RequestCount", "LoadBalancer", "${local.alb_suffix}"]
+          ]
+          period = 60, stat = "Sum"
+        }
+      },
+      {
+        type = "metric", x = 0, y = 6, width = 12, height = 6
+        properties = {
+          title  = "Target Response Time (latency)"
+          region = "eu-west-1"
+          metrics = [
+            ["AWS/ApplicationELB", "TargetResponseTime", "LoadBalancer", "${local.alb_suffix}"]
+          ]
+          period = 60, stat = "Average"
+        }
+      },
+      {
+        type = "metric", x = 12, y = 6, width = 12, height = 6
+        properties = {
+          title  = "HTTP 5xx Errors"
+          region = "eu-west-1"
+          metrics = [
+            ["AWS/ApplicationELB", "HTTPCode_Target_5XX_Count", "LoadBalancer", "${local.alb_suffix}"]
+          ]
+          period = 60, stat = "Sum"
+        }
+      },
+      {
+        type = "metric", x = 0, y = 12, width = 12, height = 6
+        properties = {
+          title  = "Healthy Host Count"
+          region = "eu-west-1"
+          metrics = [
+            ["AWS/ApplicationELB", "HealthyHostCount", "LoadBalancer", "${local.alb_suffix}", "TargetGroup", "${local.tg_suffix}"]
+          ]
+          period = 60, stat = "Average"
+        }
+      }
+    ]
+  })
+}
+
+locals {
+  alb_suffix = aws_lb.main.arn_suffix
+  tg_suffix  = aws_lb_target_group.app.arn_suffix
+}
+
