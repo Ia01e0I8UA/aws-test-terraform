@@ -195,7 +195,7 @@ resource "aws_iam_role" "github_actions" {
       Action = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:Ia01e0I8UA/aws-test-terraform:*"
+          "token.actions.githubusercontent.com:sub" = "repo:Ia01e0I8UA@*/aws-test-terraform@*:*"
         }
       }
     }]
