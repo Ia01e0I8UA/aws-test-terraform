@@ -3,12 +3,12 @@ terraform {
     aws    = { source = "hashicorp/aws", version = "~> 5.0" }
     random = { source = "hashicorp/random", version = "~> 3.0" }
   }
-  
+
 
   backend "s3" {
-    bucket = "tf-state-uno"
-    key = "trrfrm.stte"
-    region= "eu-west-1"
+    bucket       = "tf-state-uno"
+    key          = "trrfrm.stte"
+    region       = "eu-west-1"
     use_lockfile = true
   }
 

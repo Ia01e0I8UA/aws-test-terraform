@@ -1,13 +1,13 @@
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
   tags = {
-    name = "main_vpc"  
+    name = "main_vpc"
   }
 }
 
 resource "aws_internet_gateway" "GW" {
   vpc_id = aws_vpc.main.id
-  
+
   tags = { name = "main" }
 }
 
@@ -21,27 +21,27 @@ resource "aws_route_table" "main_table" {
 }
 
 resource "aws_subnet" "subnet1" {
-  vpc_id = aws_vpc.main.id
-  cidr_block = "10.0.1.0/24"
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.1.0/24"
   availability_zone = "eu-west-1a"
- 
+
 }
 
 resource "aws_route_table_association" "table1" {
-  subnet_id = aws_subnet.subnet1.id
+  subnet_id      = aws_subnet.subnet1.id
   route_table_id = aws_route_table.main_table.id
 }
 
 
 resource "aws_subnet" "subnet2" {
-  vpc_id = aws_vpc.main.id 
-  cidr_block = "10.0.2.0/24"
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.2.0/24"
   availability_zone = "eu-west-1b"
 
 }
 
 resource "aws_route_table_association" "table2" {
-  subnet_id = aws_subnet.subnet2.id
+  subnet_id      = aws_subnet.subnet2.id
   route_table_id = aws_route_table.main_table.id
 }
 # ----------------------------------------------------------------
@@ -60,36 +60,36 @@ resource "aws_nat_gateway" "nat_gateway" {
 }
 
 resource "aws_eip" "elastic_ip" {
-  domain   = "vpc"
+  domain = "vpc"
 }
 
-resource aws_route_table "private_table" {
+resource "aws_route_table" "private_table" {
   vpc_id = aws_vpc.main.id
   route {
-    cidr_block = "0.0.0.0/0"
+    cidr_block     = "0.0.0.0/0"
     nat_gateway_id = aws_nat_gateway.nat_gateway.id
   }
 }
 
 resource "aws_route_table_association" "table_priv" {
-  subnet_id = aws_subnet.subnet_priv.id
+  subnet_id      = aws_subnet.subnet_priv.id
   route_table_id = aws_route_table.private_table.id
 }
 
 resource "aws_subnet" "subnet_priv" {
-  vpc_id = aws_vpc.main.id
-  cidr_block = "10.0.3.0/24"
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.3.0/24"
   availability_zone = "eu-west-1a"
 }
 
 resource "aws_route_table_association" "table_priv2" {
-  subnet_id = aws_subnet.subnet_priv2.id
+  subnet_id      = aws_subnet.subnet_priv2.id
   route_table_id = aws_route_table.private_table.id
 }
 
 resource "aws_subnet" "subnet_priv2" {
-  vpc_id = aws_vpc.main.id
-  cidr_block = "10.0.4.0/24"
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.4.0/24"
   availability_zone = "eu-west-1b"
 }
 # -------------------------------------------------------------------}
@@ -178,38 +178,59 @@ resource "aws_ecs_task_definition" "app" {
 }
 
 resource "aws_iam_openid_connect_provider" "github" {
-  url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
+  url            = "https://token.actions.githubusercontent.com"
+  client_id_list = ["sts.amazonaws.com"]
 }
 
-resource "aws_iam_role" "github_actions" {
-  name = "github-actions-role"
-
+resource "aws_iam_role" "github_plan" {
+  name = "github-actions-plan"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
-      Principal = {
-        Federated = aws_iam_openid_connect_provider.github.arn
-      }
-      Action = "sts:AssumeRoleWithWebIdentity"
+      Effect    = "Allow"
+      Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
+      Action    = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:Ia01e0I8UA@*/aws-test-terraform@*:*"
+          "token.actions.githubusercontent.com:sub" = "repo:Ia01e0I8UA@*/aws-test-terraform@*:pull_request"
         }
       }
     }]
   })
 }
 
-resource "aws_iam_role_policy_attachment" "github_policy_Attatchment" {
-  role      = aws_iam_role.github_actions.name
+resource "aws_iam_role" "github_apply" {
+  name = "github-actions-apply"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
+      Action    = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringLike = {
+          "token.actions.githubusercontent.com:sub" = "repo:Ia01e0I8UA@*/aws-test-terraform@*:ref:refs/heads/main"
+        }
+      }
+    }]
+  })
+}
+
+
+resource "aws_iam_role_policy_attachment" "github_apply_Attatchment" {
+  role       = aws_iam_role.github_apply.name
   policy_arn = "arn:aws:iam::aws:policy/PowerUserAccess"
 }
 
-resource "aws_iam_role_policy_attachment" "github_IAM_Attatchment" {
-  role      = aws_iam_role.github_actions.name
+resource "aws_iam_role_policy_attachment" "github_apply2_Attatchment" {
+  role       = aws_iam_role.github_apply.name
   policy_arn = "arn:aws:iam::aws:policy/IAMFullAccess"
+}
+
+
+resource "aws_iam_role_policy_attachment" "github_plan_Attatchment" {
+  role       = aws_iam_role.github_plan.name
+  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
 }
 
 #------------------------------------------------------------------SG
@@ -237,11 +258,11 @@ resource "aws_security_group" "task" {
   vpc_id = aws_vpc.main.id
 
   ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
- }
+  }
 
   egress {
     from_port   = 0
@@ -292,7 +313,7 @@ resource "aws_cloudwatch_log_group" "app" {
   name              = "/ecs/flagship-task"
   retention_in_days = 7
 }
-      
+
 resource "aws_cloudwatch_dashboard" "main" {
   dashboard_name = "flagship-dashboard"
 
