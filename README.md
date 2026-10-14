@@ -1,4 +1,4 @@
-# Flagship AWS Infrastructure — Containerized App on ECS Fargate (Terraform)
+# AWS Infrastructure — Containerized App on ECS Fargate (Terraform)
 
 Production-style AWS infrastructure provisioned entirely as code with Terraform, running a containerized application on ECS Fargate behind an Application Load Balancer, with centralized observability and a GitHub Actions CI/CD pipeline that authenticates to AWS via OIDC (no long-lived credentials).
 
